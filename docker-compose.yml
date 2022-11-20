@@ -1,0 +1,85 @@
+version: "2.1"
+
+networks:
+  nextcloud:
+    external: false
+
+services:
+
+  nextcloud-web:
+    image: nextcloud:fpm-alpine
+    container_name: nextcloud-web
+    restart: unless-stopped
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Moscow
+      - REDIS_HOST=nextcloud-redis
+      - REDIS_HOST_PASSWORD=redis
+      - PHP_MEMORY_LIMIT=4G
+      - PHP_UPLOAD_LIMIT=100G
+    volumes:
+      - ./docker_data/nextcloud:/var/www/html
+      - ./nextcloud.ini:/etc/php8/nextcloud.ini
+      - ./php-fpm.conf:/etc/php8/php-fpm.conf
+      - /mnt:/mnt
+      - ./entrypoint.sh:/entrypoint.sh
+    networks:
+      - nextcloud
+    depends_on:
+      - nextcloud-postgres
+      - nextcloud-redis
+      - nextcloud-nginx
+
+  nextcloud-nginx:
+    image: nginx:stable
+    container_name: nextcloud-nginx
+    restart: unless-stopped
+    volumes:
+      - ./docker_data/nextcloud:/var/www/html
+      - ./nextcloud-nginx.conf:/etc/nginx/conf.d/nextcloud-nginx.conf
+    ports:
+      - "9000:9000"
+    networks:
+      - nextcloud
+
+  nextcloud-postgres:
+    image: postgres:14.1-alpine
+    container_name: nextcloud-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=nextcloud
+      - POSTGRES_USER=nextcloud
+      - POSTGRES_PASSWORD=nextcloud
+    volumes:
+      - ./docker_data/postgres:/var/lib/postgresql/data
+    networks:
+      - nextcloud
+
+  nextcloud-redis:
+    image: redis:alpine
+    container_name: nextcloud-redis
+    restart: unless-stopped
+    command: redis-server --requirepass redis
+    volumes:
+      - ./docker_data/redis/data:/data
+    networks:
+      - nextcloud
+
+  nextcloud-office:
+    image: onlyoffice/documentserver
+    container_name: nextcloud-office
+    restart: unless-stopped
+    environment:
+      - JWT_SECRET=H7Twn9jIxO7n8GhfPJpW
+    volumes:
+      - ./docker_data/office/logs:/var/log/onlyoffice
+      - ./docker_data/office/data:/var/www/onlyoffice/Data
+      - ./docker_data/office/lib:/var/lib/onlyoffice
+      - ./docker_data/office/postgresql:/var/lib/postgresql
+      - ./docker_data/office/redis:/var/lib/redis
+      - ./docker_data/office/rabbitmq:/var/lib/rabbitmq
+    networks:
+      - nextcloud
+    ports:
+      - "127.0.0.1:9943:443"
